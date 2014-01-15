@@ -41,18 +41,25 @@ public:
   /// @param aBlue intensity of blue component, 0..255
   void setColor(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlue);
 
-  /// set color of one LED, scaled by a dimming factor (brightness)
+  /// set color of one LED, scaled by a factor
   /// @param aRed intensity of red component, 0..255
   /// @param aGreen intensity of green component, 0..255
   /// @param aBlue intensity of blue component, 0..255
-  /// @param aBrightness overall intensity, 0..255
+  /// @param aScaling scaling factor for RGB (PWM duty cycle), 0..255
+  void setColorScaled(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlue, byte aScaling);
+
+  /// set color of one LED, scaled by a visible brightness (non-linear) factor
+  /// @param aRed intensity of red component, 0..255
+  /// @param aGreen intensity of green component, 0..255
+  /// @param aBlue intensity of blue component, 0..255
+  /// @param aBrightness brightness, will be converted non-linear to PWM duty cycle for uniform brightness scale, 0..255
   void setColorDimmed(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlue, byte aBrightness);
 
   /// get current color of LED
   /// @param aRed set to intensity of red component, 0..255
   /// @param aGreen set to iintensity of green component, 0..255
   /// @param aBlue set to iintensity of blue component, 0..255
-  /// @note for LEDs set with setColorDimmed(), this returns the scaled down RGB values,
+  /// @note for LEDs set with setColorDimmed()/setColorScaled(), this returns the scaled down RGB values,
   ///   not the original r,g,b parameters
   void getColor(uint16_t aLedNumber, byte &aRed, byte &aGreen, byte &aBlue);
 
@@ -127,11 +134,27 @@ void p44_ws2812::setColor(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlu
 }
 
 
-void p44_ws2812::setColorDimmed(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlue, byte aBrightness)
+void p44_ws2812::setColorScaled(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlue, byte aScaling)
 {
   // scale RGB with a common brightness parameter
-  setColor(aLedNumber, (aRed*aBrightness)>>8, (aGreen*aBrightness)>>8, (aBlue*aBrightness)>>8);
+  setColor(aLedNumber, (aRed*aScaling)>>8, (aGreen*aScaling)>>8, (aBlue*aScaling)>>8);
 }
+
+
+
+byte brightnessToPWM(byte aBrightness)
+{
+  static const byte pwmLevels[16] = { 0, 1, 2, 3, 4, 6, 8, 12, 23, 36, 48, 70, 95, 135, 190, 255 };
+  return pwmLevels[aBrightness>>4];
+}
+
+
+
+void p44_ws2812::setColorDimmed(uint16_t aLedNumber, byte aRed, byte aGreen, byte aBlue, byte aBrightness)
+{
+  setColorScaled(aLedNumber, aRed, aGreen, aBlue, brightnessToPWM(aBrightness));
+}
+
 
 
 void p44_ws2812::getColor(uint16_t aLedNumber, byte &aRed, byte &aGreen, byte &aBlue)
@@ -188,7 +211,7 @@ void loop() {
   // create color cycle
   for(int i=0; i<leds.getNumLeds(); i++) {
     wheel(((i * 256 / leds.getNumLeds()) + cnt) & 255, r, g, b);
-    leds.setColorDimmed(i, r, g, b, 32);
+    leds.setColorDimmed(i, r, g, b, 128);
   }
 
   leds.show();
